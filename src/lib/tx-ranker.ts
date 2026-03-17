@@ -415,33 +415,8 @@ function extractTotalSolPaid(result: JsonObject, wallet: string | null) {
     [wallet, feePayer].filter((value): value is string => typeof value === "string" && value.length > 0),
   );
   const tipLamports = extractLanderTipLamports(result, walletCandidates);
-  
-  // Extract priority fees from the transaction meta
-  let priorityFeeLamports = 0;
-  if (meta) {
-    const preBalances = asArray(meta.preBalances);
-    const postBalances = asArray(meta.postBalances);
-    const accountKeys = accountKeysFromTransaction(result);
-    
-    if (preBalances && postBalances && preBalances.length === postBalances.length) {
-      // Priority fees are the difference in lamports paid beyond the base fee
-      // Calculate total lamports spent from all accounts
-      let totalLamportsSpent = 0;
-      for (let i = 0; i < preBalances.length && i < postBalances.length; i++) {
-        const preBalance = asNumber(preBalances[i]) ?? 0;
-        const postBalance = asNumber(postBalances[i]) ?? 0;
-        const balanceChange = preBalance - postBalance;
-        if (balanceChange > 0) {
-          totalLamportsSpent += balanceChange;
-        }
-      }
-      
-      // Priority fees are total spent minus base fee minus lander tips
-      priorityFeeLamports = Math.max(0, totalLamportsSpent - txFeeLamports - tipLamports);
-    }
-  }
 
-  return (txFeeLamports + priorityFeeLamports + tipLamports) / LAMPORTS_PER_SOL;
+  return (txFeeLamports + tipLamports) / LAMPORTS_PER_SOL;
 }
 
 async function fetchTransactionSummary(rpcUrl: string, signature: string): Promise<TxRecord> {
