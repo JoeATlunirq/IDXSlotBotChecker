@@ -28,6 +28,8 @@ export function RankerClient() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompareResult | null>(null);
 
+  // Build trigger: 2025-03-17-v2
+
   const botCount = useMemo(
     () => form.bots.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).length,
     [form.bots],
