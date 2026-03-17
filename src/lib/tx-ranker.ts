@@ -415,8 +415,52 @@ function extractTotalSolPaid(result: JsonObject, wallet: string | null) {
     [wallet, feePayer].filter((value): value is string => typeof value === "string" && value.length > 0),
   );
   const tipLamports = extractLanderTipLamports(result, walletCandidates);
+  
+  // Extract priority fees from compute unit consumption
+  let priorityFeeLamports = 0;
+  if (meta) {
+    // Try to get priority fees from compute unit price
+    const err = asObject(meta.err);
+    if (err && typeof err === 'object') {
+      // Check for InsufficientFundsForFee error which includes priority fee info
+      const logs = asArray(meta.logMessages);
+      if (logs) {
+        for (const log of logs) {
+          if (typeof log === 'string' && log.includes('compute unit price')) {
+            const match = log.match(/compute unit price: (\d+)/);
+            if (match) {
+              const computeUnitPrice = parseInt(match[1], 10);
+              // Get compute units consumed (typically from transaction details)
+              const transaction = asObject(result.transaction);
+              const message = transaction ? asObject(transaction.message) : null;
+              const instructions = message ? asArray(message.instructions) : null;
+              const computeUnitsConsumed = instructions ? instructions.length * 200000 : 200000; // Rough estimate
+              priorityFeeLamports = computeUnitPrice * computeUnitsConsumed;
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Alternative: try to extract from pre/post balances of fee payer only
+    if (priorityFeeLamports === 0) {
+      const preBalances = asArray(meta.preBalances);
+      const postBalances = asArray(meta.postBalances);
+      
+      if (preBalances && postBalances && preBalances.length > 0) {
+        const feePayerIndex = 0;
+        const preBalance = asNumber(preBalances[feePayerIndex]) ?? 0;
+        const postBalance = asNumber(postBalances[feePayerIndex]) ?? 0;
+        const feePayerTotalSpent = preBalance - postBalance;
+        
+        // Priority fees = total spent by fee payer - base fee - lander tips
+        priorityFeeLamports = Math.max(0, feePayerTotalSpent - txFeeLamports - tipLamports);
+      }
+    }
+  }
 
-  return (txFeeLamports + tipLamports) / LAMPORTS_PER_SOL;
+  return (txFeeLamports + priorityFeeLamports + tipLamports) / LAMPORTS_PER_SOL;
 }
 
 async function fetchTransactionSummary(rpcUrl: string, signature: string): Promise<TxRecord> {
