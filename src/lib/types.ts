@@ -1,0 +1,39 @@
+export type TxRecord = {
+  signature: string;
+  wallet: string | null;
+  slot: number;
+  blockTime: number | null;
+  idx: number | null;
+  slotTxCount: number | null;
+};
+
+export type RankedRow = {
+  rank: number;
+  name: string;
+  signature: string;
+  wallet: string | null;
+  slot: number;
+  idx: number | null;
+  slotTxCount: number | null;
+  slotDelta: number;
+  sameSlotIdxDelta: number | null;
+  estDelayMs: number;
+  absEstDelayMs: number;
+};
+
+export type CompareResult = {
+  rpcUrlUsed: string;
+  slotMs: number;
+  trigger: TxRecord;
+  rankedBots: RankedRow[];
+  skippedBotErrors: Record<string, string>;
+  blockErrors: Record<string, string>;
+  missingIdxBySlot: Record<string, string[]>;
+};
+
+export type CompareRequestPayload = {
+  rpcUrl?: string;
+  trigger: string;
+  bots: string[];
+  slotMs?: number;
+};

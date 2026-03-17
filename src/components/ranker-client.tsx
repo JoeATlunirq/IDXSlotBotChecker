@@ -1,0 +1,365 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+import { AlertCircle, Clock3, Search, Wallet } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { CompareResult } from "@/lib/types";
+import { shortSignature } from "@/lib/utils";
+
+type RankerClientProps = {
+  defaultRpcUrl: string;
+};
+
+type FormState = {
+  rpcUrl: string;
+  trigger: string;
+  bots: string;
+  slotMs: string;
+};
+
+export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
+  const [form, setForm] = useState<FormState>({
+    rpcUrl: defaultRpcUrl,
+    trigger: "",
+    bots: "",
+    slotMs: "400",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CompareResult | null>(null);
+
+  const botCount = useMemo(
+    () => form.bots.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).length,
+    [form.bots],
+  );
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/compare", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rpcUrl: form.rpcUrl,
+          trigger: form.trigger,
+          bots: form.bots.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+          slotMs: Number(form.slotMs),
+        }),
+      });
+
+      const body = (await response.json()) as CompareResult | { error: string };
+      if (!response.ok) {
+        throw new Error("error" in body ? body.error : "Request failed");
+      }
+
+      setResult(body as CompareResult);
+    } catch (submitError) {
+      setResult(null);
+      setError(submitError instanceof Error ? submitError.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
+      <section className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-600 to-slate-900 px-6 py-8 text-white shadow-soft md:px-8">
+        <div className="inline-flex w-fit items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-blue-50">
+          IDX Slot Bot Checker
+        </div>
+        <div className="max-w-3xl space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Check trigger tx vs bot txs in the browser.</h1>
+          <p className="text-sm text-blue-50/90 md:text-base">
+            Paste a trigger transaction and any number of bot transactions. The app compares slot, intra-slot index,
+            same-slot ordering, and estimated delay.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Compare transactions</CardTitle>
+            <CardDescription>Accepts raw signatures or Solscan transaction links.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-5" onSubmit={onSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="rpc-url">RPC URL</Label>
+                <Input
+                  id="rpc-url"
+                  value={form.rpcUrl}
+                  onChange={(event) => setForm((current) => ({ ...current, rpcUrl: event.target.value }))}
+                  placeholder="https://your-rpc-url"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="trigger">Trigger transaction</Label>
+                <Input
+                  id="trigger"
+                  value={form.trigger}
+                  onChange={(event) => setForm((current) => ({ ...current, trigger: event.target.value }))}
+                  placeholder="Raw signature or Solscan tx URL"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="bots">Bot transactions</Label>
+                  <span className="text-xs text-slate-500">{botCount} entered</span>
+                </div>
+                <Textarea
+                  id="bots"
+                  value={form.bots}
+                  onChange={(event) => setForm((current) => ({ ...current, bots: event.target.value }))}
+                  placeholder={"One per line\nhttps://solscan.io/tx/...\nhttps://solscan.io/tx/..."}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="slot-ms">Slot ms assumption</Label>
+                <Input
+                  id="slot-ms"
+                  inputMode="decimal"
+                  value={form.slotMs}
+                  onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
+                  placeholder="400"
+                />
+              </div>
+
+              <Button className="w-full" type="submit" disabled={loading}>
+                {loading ? "Checking..." : "Run comparison"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <InfoCard icon={Search} label="Trigger input" value="Hash or Solscan URL" />
+            <InfoCard icon={Wallet} label="Wallet column" value="Auto-detected signer" />
+            <InfoCard icon={Clock3} label="Delay estimate" value="Slot + idx based" />
+          </div>
+
+          {error ? (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="flex items-start gap-3 p-5 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{error}</p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {result ? <ResultsSection result={result} /> : <EmptyState />}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function InfoCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Search;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-5">
+        <div className="rounded-xl bg-blue-50 p-2 text-blue-600">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-sm font-medium text-slate-900">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyState() {
+  return (
+    <Card>
+      <CardContent className="flex min-h-[320px] flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+          <Search className="h-6 w-6" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold text-slate-950">No results yet</h3>
+          <p className="max-w-md text-sm text-slate-600">
+            Submit a trigger transaction and bot transactions to see ranked slot proximity and intra-slot ordering.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResultsSection({ result }: { result: CompareResult }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="RPC used" value={result.rpcUrlUsed || "-"} />
+        <StatCard label="Bot txs ranked" value={String(result.rankedBots.length)} />
+        <StatCard label="Slot ms" value={result.slotMs.toFixed(1)} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Comparison table</CardTitle>
+          <CardDescription>Ranked by closeness to the trigger using slot delta and intra-slot position.</CardDescription>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr>
+                {[
+                  "Rank",
+                  "Name",
+                  "Wallet",
+                  "Signature",
+                  "Slot",
+                  "Idx",
+                  "SlotTxs",
+                  "SlotΔ",
+                  "IdxΔSame",
+                  "EstMs",
+                ].map((header) => (
+                  <th key={header} className="border-b border-slate-200 px-3 py-2 font-medium text-slate-600">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <ResultRow
+                row={{
+                  rank: 0,
+                  name: "trigger",
+                  signature: result.trigger.signature,
+                  wallet: result.trigger.wallet,
+                  slot: result.trigger.slot,
+                  idx: result.trigger.idx,
+                  slotTxCount: result.trigger.slotTxCount,
+                  slotDelta: 0,
+                  sameSlotIdxDelta: 0,
+                  estDelayMs: 0,
+                }}
+                trigger
+              />
+              {result.rankedBots.map((row) => (
+                <ResultRow key={row.signature} row={row} />
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <KeyValueCard title="Skipped bot signatures" emptyLabel="None" entries={Object.entries(result.skippedBotErrors)} />
+        <KeyValueCard title="Block fetch errors" emptyLabel="None" entries={Object.entries(result.blockErrors)} />
+      </div>
+
+      <KeyValueCard
+        title="Missing idx by slot"
+        emptyLabel="All requested transactions were found in block index data"
+        entries={Object.entries(result.missingIdxBySlot).map(([slot, signatures]) => [
+          slot,
+          signatures.map((signature) => shortSignature(signature, 8, 8)).join(", "),
+        ])}
+      />
+    </div>
+  );
+}
+
+function ResultRow({
+  row,
+  trigger = false,
+}: {
+  row: {
+    rank: number;
+    name: string;
+    signature: string;
+    wallet: string | null;
+    slot: number;
+    idx: number | null;
+    slotTxCount: number | null;
+    slotDelta: number;
+    sameSlotIdxDelta: number | null;
+    estDelayMs: number;
+  };
+  trigger?: boolean;
+}) {
+  return (
+    <tr className={trigger ? "bg-blue-50/60" : "hover:bg-slate-50"}>
+      <td className="border-b border-slate-100 px-3 py-2 font-medium text-slate-900">{trigger ? "TRG" : row.rank}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.name}</td>
+      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{shortSignature(row.wallet, 12, 10)}</td>
+      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{shortSignature(row.signature, 12, 10)}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slot}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.idx ?? "-"}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slotTxCount ?? "-"}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.sameSlotIdxDelta ?? "-"}</td>
+      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
+    </tr>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="space-y-1 p-5">
+        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="break-all text-sm font-medium text-slate-950">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function KeyValueCard({
+  title,
+  entries,
+  emptyLabel,
+}: {
+  title: string;
+  entries: Array<[string, string]>;
+  emptyLabel: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {entries.length === 0 ? (
+          <p className="text-sm text-slate-600">{emptyLabel}</p>
+        ) : (
+          <div className="space-y-3">
+            {entries.map(([key, value]) => (
+              <div key={`${title}-${key}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                <p className="font-mono text-xs text-slate-500">{key}</p>
+                <p className="mt-1 break-all text-slate-800">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
