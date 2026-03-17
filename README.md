@@ -20,21 +20,25 @@ Open `http://localhost:3000`.
 
 ## Environment variables
 
-Create `.env.local` from `.env.example` if you want a default RPC prefilled in the UI and used by the API:
+Create `.env.local` from `.env.example`:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Then set one or both:
+Then set:
 
 ```bash
-NEXT_PUBLIC_DEFAULT_RPC_URL=
 SERVER_DEFAULT_RPC_URL=
+SITE_PASSWORD=
+SITE_SESSION_SECRET=
 ```
 
-- `NEXT_PUBLIC_DEFAULT_RPC_URL`: pre-fills the RPC field in the browser
-- `SERVER_DEFAULT_RPC_URL`: server-side fallback if the form omits RPC
+- `SERVER_DEFAULT_RPC_URL`: server-only RPC used by the API route
+- `SITE_PASSWORD`: password required to access the site
+- `SITE_SESSION_SECRET`: long random secret used to sign the session cookie
+
+The RPC URL is kept server-side only and is not sent to the browser.
 
 ## Deploy to Vercel
 

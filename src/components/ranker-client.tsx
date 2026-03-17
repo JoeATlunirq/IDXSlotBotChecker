@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { AlertCircle, Clock3, Search, Wallet } from "lucide-react";
+import { AlertCircle, Clock3, LogOut, Search, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,25 +11,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { CompareResult } from "@/lib/types";
 import { shortSignature } from "@/lib/utils";
 
-type RankerClientProps = {
-  defaultRpcUrl: string;
-};
-
 type FormState = {
-  rpcUrl: string;
   trigger: string;
   bots: string;
   slotMs: string;
 };
 
-export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
+export function RankerClient() {
   const [form, setForm] = useState<FormState>({
-    rpcUrl: defaultRpcUrl,
     trigger: "",
     bots: "",
     slotMs: "400",
   });
   const [loading, setLoading] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompareResult | null>(null);
 
@@ -50,7 +45,6 @@ export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          rpcUrl: form.rpcUrl,
           trigger: form.trigger,
           bots: form.bots.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
           slotMs: Number(form.slotMs),
@@ -59,6 +53,10 @@ export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
 
       const body = (await response.json()) as CompareResult | { error: string };
       if (!response.ok) {
+        if (response.status === 401) {
+          window.location.reload();
+          return;
+        }
         throw new Error("error" in body ? body.error : "Request failed");
       }
 
@@ -71,17 +69,41 @@ export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
     }
   }
 
+  async function onLogout() {
+    setSigningOut(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+    } finally {
+      window.location.reload();
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
       <section className="flex flex-col gap-4 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-600 to-slate-900 px-6 py-8 text-white shadow-soft md:px-8">
-        <div className="inline-flex w-fit items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-blue-50">
-          IDX Slot Bot Checker
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="inline-flex w-fit items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-blue-50">
+            IDX Slot Bot Checker
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="bg-white/10 text-white hover:bg-white/20"
+            onClick={onLogout}
+            disabled={signingOut}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            {signingOut ? "Signing out..." : "Sign out"}
+          </Button>
         </div>
         <div className="max-w-3xl space-y-3">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Check trigger tx vs bot txs in the browser.</h1>
           <p className="text-sm text-blue-50/90 md:text-base">
-            Paste a trigger transaction and any number of bot transactions. The app compares slot, intra-slot index,
-            same-slot ordering, and estimated delay.
+            Paste a trigger transaction and any number of bot transactions. All RPC access stays server-side while the
+            app compares slot, intra-slot index, same-slot ordering, and estimated delay.
           </p>
         </div>
       </section>
@@ -94,16 +116,6 @@ export function RankerClient({ defaultRpcUrl }: RankerClientProps) {
           </CardHeader>
           <CardContent>
             <form className="space-y-5" onSubmit={onSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="rpc-url">RPC URL</Label>
-                <Input
-                  id="rpc-url"
-                  value={form.rpcUrl}
-                  onChange={(event) => setForm((current) => ({ ...current, rpcUrl: event.target.value }))}
-                  placeholder="https://your-rpc-url"
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="trigger">Trigger transaction</Label>
                 <Input
@@ -214,7 +226,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="RPC used" value={result.rpcUrlUsed || "-"} />
+        <StatCard label="RPC mode" value="Server-only" />
         <StatCard label="Bot txs ranked" value={String(result.rankedBots.length)} />
         <StatCard label="Slot ms" value={result.slotMs.toFixed(1)} />
       </div>
@@ -224,23 +236,35 @@ function ResultsSection({ result }: { result: CompareResult }) {
           <CardTitle>Comparison table</CardTitle>
           <CardDescription>Ranked by closeness to the trigger using slot delta and intra-slot position.</CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+        <CardContent className="overflow-hidden px-2 pb-3 pt-0 sm:px-3">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[11px] leading-4 sm:text-xs">
+            <colgroup>
+              <col className="w-[7%]" />
+              <col className="w-[10%]" />
+              <col className="w-[18%]" />
+              <col className="w-[19%]" />
+              <col className="w-[11%]" />
+              <col className="w-[6%]" />
+              <col className="w-[8%]" />
+              <col className="w-[6%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead>
               <tr>
                 {[
                   "Rank",
                   "Name",
                   "Wallet",
-                  "Signature",
+                  "Sig",
                   "Slot",
                   "Idx",
-                  "SlotTxs",
+                  "Txs",
                   "SlotΔ",
-                  "IdxΔSame",
+                  "IdxΔ",
                   "EstMs",
                 ].map((header) => (
-                  <th key={header} className="border-b border-slate-200 px-3 py-2 font-medium text-slate-600">
+                  <th key={header} className="border-b border-slate-200 px-2 py-2 font-medium text-slate-600 whitespace-nowrap">
                     {header}
                   </th>
                 ))}
@@ -307,16 +331,20 @@ function ResultRow({
 }) {
   return (
     <tr className={trigger ? "bg-blue-50/60" : "hover:bg-slate-50"}>
-      <td className="border-b border-slate-100 px-3 py-2 font-medium text-slate-900">{trigger ? "TRG" : row.rank}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.name}</td>
-      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{shortSignature(row.wallet, 12, 10)}</td>
-      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{shortSignature(row.signature, 12, 10)}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slot}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.idx ?? "-"}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slotTxCount ?? "-"}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.sameSlotIdxDelta ?? "-"}</td>
-      <td className="border-b border-slate-100 px-3 py-2 text-slate-700">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-medium text-slate-900 whitespace-nowrap">{trigger ? "TRG" : row.rank}</td>
+      <td className="border-b border-slate-100 px-2 py-2 text-slate-700 whitespace-nowrap">{row.name}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[10px] text-slate-700 whitespace-nowrap" title={row.wallet ?? undefined}>
+        {shortSignature(row.wallet, 8, 6)}
+      </td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[10px] text-slate-700 whitespace-nowrap" title={row.signature}>
+        {shortSignature(row.signature, 8, 6)}
+      </td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slot}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.idx ?? "-"}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotTxCount ?? "-"}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.sameSlotIdxDelta ?? "-"}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
     </tr>
   );
 }

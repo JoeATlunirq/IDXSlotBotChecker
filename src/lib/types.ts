@@ -22,7 +22,6 @@ export type RankedRow = {
 };
 
 export type CompareResult = {
-  rpcUrlUsed: string;
   slotMs: number;
   trigger: TxRecord;
   rankedBots: RankedRow[];
@@ -32,7 +31,6 @@ export type CompareResult = {
 };
 
 export type CompareRequestPayload = {
-  rpcUrl?: string;
   trigger: string;
   bots: string[];
   slotMs?: number;

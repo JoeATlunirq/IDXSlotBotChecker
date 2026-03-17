@@ -1,7 +1,17 @@
-import { RankerClient } from "@/components/ranker-client";
+import { cookies } from "next/headers";
 
-const DEFAULT_RPC_URL = process.env.NEXT_PUBLIC_DEFAULT_RPC_URL || "";
+import { PasswordGate } from "@/components/password-gate";
+import { RankerClient } from "@/components/ranker-client";
+import { AUTH_COOKIE_NAME, getAuthConfigurationError, hasValidSessionCookieValue } from "@/lib/site-auth";
 
 export default function HomePage() {
-  return <RankerClient defaultRpcUrl={DEFAULT_RPC_URL} />;
+  const configurationError = getAuthConfigurationError();
+  const sessionCookie = cookies().get(AUTH_COOKIE_NAME)?.value;
+  const isAuthenticated = !configurationError && hasValidSessionCookieValue(sessionCookie);
+
+  if (!isAuthenticated) {
+    return <PasswordGate configurationError={configurationError} />;
+  }
+
+  return <RankerClient />;
 }

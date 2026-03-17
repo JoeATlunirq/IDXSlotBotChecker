@@ -61,10 +61,10 @@ async function callRpc<T>(rpcUrl: string, method: string, params: unknown[], ret
 
       const body = (await response.json()) as { result?: T; error?: unknown };
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status} during ${method}`);
+        throw new Error("Upstream request failed.");
       }
       if (body.error) {
-        throw new Error(`${method} failed: ${JSON.stringify(body.error)}`);
+        throw new Error("Upstream request failed.");
       }
       return body.result as T;
     } catch (error) {
@@ -75,7 +75,7 @@ async function callRpc<T>(rpcUrl: string, method: string, params: unknown[], ret
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error(`${method} failed with an unknown error`);
+  throw lastError instanceof Error ? lastError : new Error("Upstream request failed.");
 }
 
 function asObject(value: JsonValue | undefined): JsonObject | null {
@@ -443,8 +443,8 @@ export async function compareTransactions(input: {
     signatures.map(async (signature) => {
       try {
         txRecords[signature] = await fetchTransactionSummary(rpcUrl, signature);
-      } catch (error) {
-        txErrors[signature] = error instanceof Error ? error.message : "Unknown transaction fetch error";
+      } catch {
+        txErrors[signature] = "Unable to fetch transaction metadata.";
       }
     }),
   );
@@ -470,8 +470,8 @@ export async function compareTransactions(input: {
       try {
         const blockRecord = await fetchBlockSignatures(rpcUrl, slot, expectedSignatures);
         blockRecords.set(slot, blockRecord);
-      } catch (error) {
-        blockErrors[String(slot)] = error instanceof Error ? error.message : "Unknown block fetch error";
+      } catch {
+        blockErrors[String(slot)] = "Unable to fetch block index data.";
       }
     }),
   );
@@ -500,7 +500,6 @@ export async function compareTransactions(input: {
   });
 
   return {
-    rpcUrlUsed: rpcUrl,
     slotMs,
     trigger: txRecords[triggerSignature],
     rankedBots,
