@@ -245,8 +245,8 @@ function ResultsSection({ result }: { result: CompareResult }) {
               <col className="w-[14%]" />
               <col className="w-[7%]" />
               <col className="w-[6%]" />
+              <col className="w-[12%]" />
               <col className="w-[6%]" />
-              <col className="w-[7%]" />
             </colgroup>
             <thead>
               <tr>
@@ -258,7 +258,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   "Slot",
                   "Idx",
                   "SlotΔ",
-                  "IdxΔ",
+                  "Paid SOL",
                   "EstMs",
                 ].map((header) => (
                   <th key={header} className="border-b border-slate-200 px-2 py-2 font-medium text-slate-600 whitespace-nowrap">
@@ -278,6 +278,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   idx: result.trigger.idx,
                   slotDelta: 0,
                   sameSlotIdxDelta: 0,
+                  totalSolPaid: result.trigger.totalSolPaid,
                   estDelayMs: 0,
                 }}
                 trigger
@@ -306,6 +307,7 @@ function ResultRow({
     idx: number | null;
     slotDelta: number;
     sameSlotIdxDelta: number | null;
+    totalSolPaid: number;
     estDelayMs: number;
   };
   trigger?: boolean;
@@ -323,7 +325,7 @@ function ResultRow({
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slot}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.idx ?? "-"}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
-      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.sameSlotIdxDelta ?? "-"}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.totalSolPaid.toFixed(6)}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
     </tr>
   );

@@ -5,6 +5,7 @@ export type TxRecord = {
   blockTime: number | null;
   idx: number | null;
   slotTxCount: number | null;
+  totalSolPaid: number;
 };
 
 export type RankedRow = {
@@ -19,6 +20,7 @@ export type RankedRow = {
   sameSlotIdxDelta: number | null;
   estDelayMs: number;
   absEstDelayMs: number;
+  totalSolPaid: number;
 };
 
 export type CompareResult = {

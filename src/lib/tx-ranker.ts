@@ -1,6 +1,105 @@
 import { CompareResult, RankedRow, TxRecord } from "@/lib/types";
 
 const DEFAULT_SLOT_MS = 400;
+const LAMPORTS_PER_SOL = 1_000_000_000;
+const SYSTEM_PROGRAM_ID = "11111111111111111111111111111111";
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const BASE58_CHAR_TO_VALUE = Object.fromEntries(
+  [...BASE58_ALPHABET].map((char, index) => [char, index]),
+) as Record<string, number>;
+const LANDER_TIP_ACCOUNTS = new Set<string>([
+  "astrazznxsGUhWShqgNtAdfrzP2G83DzcWVJDxwV9bF",
+  "astra4uejePWneqNaJKuFFA8oonqCE1sqF6b45kDMZm",
+  "astra9xWY93QyfG6yM8zwsKsRodscjQ2uU2HKNL5prk",
+  "astraRVUuTHjpwEVvNBeQEgwYx9w9CFyfxjYoobCZhL",
+  "astraEJ2fEj8Xmy6KLG7B3VfbKfsHXhHrNdCQx7iGJK",
+  "astraubkDw81n4LuutzSQ8uzHCv4BhPVhfvTcYv8SKC",
+  "astraZW5GLFefxNPAatceHhYjfA1ciq9gvfEg2S47xk",
+  "astrawVNP4xDBKT7rAdxrLYiTSTdqtUr63fSMduivXK",
+  "FjmZZrFvhnqqb9ThCuMVnENaM3JGVuGWNyCAxRJcFpg9",
+  "6No2i3aawzHsjtThw81iq1EXPJN6rh8eSJCLaYZfKDTG",
+  "A9cWowVAiHe9pJfKAj3TJiN9VpbzMUq6E4kEvf5mUT22",
+  "Gywj98ophM7GmkDdaWs4isqZnDdFCW7B46TXmKfvyqSm",
+  "68Pwb4jS7eZATjDfhmTXgRJjCiZmw1L7Huy4HNpnxJ3o",
+  "4ABhJh5rZPjv63RBJBuyWzBK3g9gWMUQdTZP2kiW31V9",
+  "B2M4NG5eyZp5SBQrSdtemzk5TqVuaWGQnowGaCBt8GyM",
+  "5jA59cXMKQqZAVdtopv8q3yyw9SYfiE3vUCbt7p8MfVf",
+  "5YktoWygr1Bp9wiS1xtMtUki1PeYuuzuCF98tqwYxf61",
+  "295Avbam4qGShBYK7E9H5Ldew4B3WyJGmgmXfiWdeeyV",
+  "EDi4rSy2LZgKJX74mbLTFk4mxoTgT6F7HxxzG2HBAFyK",
+  "BnGKHAC386n4Qmv9xtpBVbRaUTKixjBe3oagkPFKtoy6",
+  "Dd7K2Fp7AtoN8xCghKDRmyqr5U169t48Tw5fEd3wT9mq",
+  "AP6qExwrbRgBAVaehg4b5xHENX815sMabtBzUzVB4v8S",
+  "HWEoBxYs7ssKuudEjzjmpfJVX7Dvi7wescFsVx2L5yoY",
+  "95cfoy472fcQHaw4tPGBTKpn6ZQnfEPfBgDQx6gcRmRg",
+  "3UQUKjhMKaY2S6bjcQD6yHB7utcZt5bfarRCmctpRtUd",
+  "FogxVNs6Mm2w9rnGL1vkARSwJxvLE8mujTv3LK8RnUhF",
+  "FLaShB3iXXTWE1vu9wQsChUKq3HFtpMAhb8kAh1pf1wi",
+  "FLashhsorBmM9dLpuq6qATawcpqk1Y2aqaZfkd48iT3W",
+  "FLaSHJNm5dWYzEgnHJWWJP5ccu128Mu61NJLxUf7mUXU",
+  "FLaSHR4Vv7sttd6TyDF4yR1bJyAxRwWKbohDytEMu3wL",
+  "FLASHRzANfcAKDuQ3RXv9hbkBy4WVEKDzoAgxJ56DiE4",
+  "FLasHstqx11M8W56zrSEqkCyhMCCpr6ze6Mjdvqope5s",
+  "FLAShWTjcweNT4NSotpjpxAkwxUr2we3eXQGhpTVzRwy",
+  "FLasHXTqrbNvpWFB6grN47HGZfK6pze9HLNTgbukfPSk",
+  "FLAshyAyBcKb39KPxSzXcepiS8iDYUhDGwJcJDPX4g2B",
+  "FLAsHZTRcf3Dy1APaz6j74ebdMC6Xx4g6i9YxjyrDybR",
+  "4ACfpUFoaSD9bfPdeu6DBt89gB6ENTeHBXCAi87NhDEE",
+  "D2L6yPZ2FmmmTKPgzaMKdhu6EWZcTpLy1Vhx8uvZe7NZ",
+  "9bnz4RShgq1hAnLnZbP8kbgBg1kEmcJBYQq3gQbmnSta",
+  "5VY91ws6B2hMmBFRsXkoAAdsPHBJwRfBht4DXox3xkwn",
+  "2nyhqdwKcJZR2vcqCyrYsaPVdAnFoJjiksCXJ7hfEYgD",
+  "2q5pghRs6arqVjRvT5gfgWfWcHWmw1ZuCzphgd5KfWGJ",
+  "wyvPkWjVZz1M8fHQnMMCDTQDbkManefNNhweYk5WkcF",
+  "3KCKozbAaF75qEU33jtzozcJ29yJuaLJTy2jFdzUY8bT",
+  "4vieeGHPYPG2MmyPRcYjdiDmmhN3ww7hsFNap8pVN3Ey",
+  "4TQLFNWK8AovT1gFvda5jfw2oJeRMKEmw7aH6MGBJ3or",
+  "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+  "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+  "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+  "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+  "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+  "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
+  "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
+  "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+  "node1PqAa3BWWzUnTHVbw8NJHC874zn9ngAkXjgWEej",
+  "node1UzzTxAAeBTpfZkQPJXBAqixsbdth11ba1NXLBG",
+  "node1Qm1bV4fwYnCurP8otJ9s5yrkPq7SPZ5uhj3Tsv",
+  "node1PUber6SFmSQgvf2ECmXsHP5o3boRSGhvJyPMX1",
+  "node1AyMbeqiVN6eoQzEAwCA6Pk826hrdqdAHR7cdJ3",
+  "node1YtWCoTwwVYTFLfS19zquRQzYX332hs1HEuRBjC",
+  "TEMPaMeCRFAS9EKF53Jd6KpHxgL47uWLcpFArU1Fanq",
+  "noz3jAjPiHuBPqiSPkkugaJDkJscPuRhYnSpbi8UvC4",
+  "noz3str9KXfpKknefHji8L1mPgimezaiUyCHYMDv1GE",
+  "noz6uoYCDijhu1V7cutCpwxNiSovEwLdRHPwmgCGDNo",
+  "noz9EPNcT7WH6Sou3sr3GGjHQYVkN3DNirpbvDkv9YJ",
+  "nozc5yT15LazbLTFVZzoNZCwjh3yUtW86LoUyqsBu4L",
+  "nozFrhfnNGoyqwVuwPAW4aaGqempx4PU6g6D9CJMv7Z",
+  "nozievPk7HyK1Rqy1MPJwVQ7qQg2QoJGyP71oeDwbsu",
+  "noznbgwYnBLDHu8wcQVCEw6kDrXkPdKkydGJGNXGvL7",
+  "nozNVWs5N8mgzuD3qigrCG2UoKxZttxzZ85pvAQVrbP",
+  "nozpEGbwx4BcGp6pvEdAh1JoC2CQGZdU6HbNP1v2p6P",
+  "nozrhjhkCr3zXT3BiT4WCodYCUFeQvcdUkM7MqhKqge",
+  "nozrwQtWhEdrA6W8dkbt9gnUaMs52PdAv5byipnadq3",
+  "nozUacTVWub3cL4mJmGCYjKZTnE9RbdY5AP46iQgbPJ",
+  "nozWCyTPppJjRuw2fpzDhhWbW355fzosWSzrrMYB1Qk",
+  "nozWNju6dY353eMkMqURqwQEoM3SFgEKC6psLCSfUne",
+  "nozxNBgWohjR75vdspfxR5H9ceC7XXH99xpxhVGt3Bb",
+  "soyas4s6L8KWZ8rsSk1mF3d1mQScoTGGAgjk98bF8nP",
+  "soyascXFW5wEEYiwfEmHy2pNwomqzvggJosGVD6TJdY",
+  "soyasDBdKjADwPz3xk82U3TNPRDKEWJj7wWLajNHZ1L",
+  "soyasE2abjBAynmHbGWgEwk4ctBy7JMTUCNrMbjcnyH",
+  "ste11JV3MLMM7x7EJUM2sXcJC1H7F4jBLnP9a9PG8PH",
+  "ste11MWPjXCRfQryCshzi86SGhuXjF4Lv6xMXD2AoSt",
+  "ste11p5x8tJ53H1NbNQsRBg1YNRd4GcVpxtDw8PBpmb",
+  "ste11p7e2KLYou5bwtt35H7BM6uMdo4pvioGjJXKFcN",
+  "ste11TMV68LMi1BguM4RQujtbNCZvf1sjsASpqgAvSX",
+  "Eb2KpSC8uMt9GmzyAEm5Eb1AAAgTjRaXWFjKyFXHZxF3",
+  "FCjUJZ1qozm1e8romw216qyfQMaaWKxWsuySnumVCCNe",
+  "ENxTEjSQ1YabmUpXAdCgevnHQ9MHdLv8tzFiuiYJqa13",
+  "6rYLG55Q9RpsPGvqdPNJs4z5WTxJVatMB8zV3WJhs5EK",
+  "Cix2bHfqPcKcM233mzxbLk14kSggUUiz2A87fJtGivXr",
+]);
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
 type JsonObject = { [key: string]: JsonValue };
@@ -144,27 +243,179 @@ function extractPrimarySignature(entry: JsonValue): string | null {
 }
 
 function extractWalletFromTransaction(result: JsonObject) {
+  return accountKeysFromTransaction(result)[0] ?? null;
+}
+
+function accountKeysFromTransaction(result: JsonObject) {
   const transaction = asObject(result.transaction);
   const message = transaction ? asObject(transaction.message) : null;
+  const meta = asObject(result.meta);
+  const accountKeys: string[] = [];
+
   if (!message) {
-    return null;
+    return accountKeys;
   }
 
   for (const keyField of ["accountKeys", "staticAccountKeys"]) {
-    const accountKeys = asArray(message[keyField]);
-    if (!accountKeys) {
+    const keys = asArray(message[keyField]);
+    if (!keys) {
       continue;
     }
 
-    for (const entry of accountKeys) {
-      const wallet = extractAccountKey(entry);
-      if (wallet) {
-        return wallet;
+    keys.forEach((entry) => {
+      const key = extractAccountKey(entry);
+      if (key) {
+        accountKeys.push(key);
       }
+    });
+  }
+
+  const loadedAddresses = meta ? asObject(meta.loadedAddresses) : null;
+  if (!loadedAddresses) {
+    return accountKeys;
+  }
+
+  for (const keyField of ["writable", "readonly"]) {
+    const keys = asArray(loadedAddresses[keyField]);
+    if (!keys) {
+      continue;
+    }
+
+    keys.forEach((entry) => {
+      const key = asString(entry);
+      if (key) {
+        accountKeys.push(key);
+      }
+    });
+  }
+
+  return accountKeys;
+}
+
+function decodeBase58(value: string) {
+  if (!value) {
+    return new Uint8Array();
+  }
+
+  const bytes = [0];
+
+  for (const char of value) {
+    const mapped = BASE58_CHAR_TO_VALUE[char];
+    if (mapped === undefined) {
+      return new Uint8Array();
+    }
+
+    let carry = mapped;
+    for (let index = 0; index < bytes.length; index += 1) {
+      const current = bytes[index] * 58 + carry;
+      bytes[index] = current & 0xff;
+      carry = current >> 8;
+    }
+
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
     }
   }
 
-  return null;
+  for (let index = 0; index < value.length && value[index] === "1"; index += 1) {
+    bytes.push(0);
+  }
+
+  return Uint8Array.from(bytes.reverse());
+}
+
+function decodeInstructionData(dataField: JsonValue | undefined) {
+  if (typeof dataField === "string") {
+    return decodeBase58(dataField);
+  }
+
+  return new Uint8Array();
+}
+
+function readLittleEndianNumber(bytes: Uint8Array, offset: number, width: number) {
+  let value = 0;
+
+  for (let index = 0; index < width; index += 1) {
+    value += (bytes[offset + index] ?? 0) * 2 ** (8 * index);
+  }
+
+  return value;
+}
+
+function extractLanderTipLamports(result: JsonObject, walletCandidates: Set<string>) {
+  if (walletCandidates.size === 0) {
+    return 0;
+  }
+
+  const transaction = asObject(result.transaction);
+  const message = transaction ? asObject(transaction.message) : null;
+  if (!message) {
+    return 0;
+  }
+
+  const accountKeys = accountKeysFromTransaction(result);
+  const instructions = asArray(message.instructions);
+  if (!instructions) {
+    return 0;
+  }
+
+  let totalTipLamports = 0;
+
+  instructions.forEach((instructionEntry) => {
+    const instruction = asObject(instructionEntry);
+    if (!instruction) {
+      return;
+    }
+
+    const programIdIndex = asNumber(instruction.programIdIndex);
+    if (programIdIndex === null || accountKeys[programIdIndex] !== SYSTEM_PROGRAM_ID) {
+      return;
+    }
+
+    const accounts = asArray(instruction.accounts);
+    if (!accounts || accounts.length < 2) {
+      return;
+    }
+
+    const fromIndex = asNumber(accounts[0]);
+    const toIndex = asNumber(accounts[1]);
+    if (fromIndex === null || toIndex === null) {
+      return;
+    }
+
+    const fromKey = accountKeys[fromIndex];
+    const toKey = accountKeys[toIndex];
+    if (!fromKey || !toKey || !walletCandidates.has(fromKey) || !LANDER_TIP_ACCOUNTS.has(toKey)) {
+      return;
+    }
+
+    const data = decodeInstructionData(instruction.data);
+    if (data.length < 12) {
+      return;
+    }
+
+    const instructionType = readLittleEndianNumber(data, 0, 4);
+    if (instructionType !== 2) {
+      return;
+    }
+
+    totalTipLamports += readLittleEndianNumber(data, 4, 8);
+  });
+
+  return totalTipLamports;
+}
+
+function extractTotalSolPaid(result: JsonObject, wallet: string | null) {
+  const meta = asObject(result.meta);
+  const txFeeLamports = meta ? asNumber(meta.fee) ?? 0 : 0;
+  const feePayer = accountKeysFromTransaction(result)[0] ?? null;
+  const walletCandidates = new Set<string>(
+    [wallet, feePayer].filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+  const tipLamports = extractLanderTipLamports(result, walletCandidates);
+
+  return (txFeeLamports + tipLamports) / LAMPORTS_PER_SOL;
 }
 
 async function fetchTransactionSummary(rpcUrl: string, signature: string): Promise<TxRecord> {
@@ -207,6 +458,7 @@ async function fetchTransactionSummary(rpcUrl: string, signature: string): Promi
     blockTime: asNumber(result.blockTime),
     idx: null,
     slotTxCount: null,
+    totalSolPaid: extractTotalSolPaid(result, extractWalletFromTransaction(result)),
   };
 }
 
@@ -388,6 +640,7 @@ function buildRankedRows(trigger: TxRecord, bots: TxRecord[], slotMs: number): R
       sameSlotIdxDelta,
       estDelayMs,
       absEstDelayMs: Math.abs(estDelayMs),
+      totalSolPaid: bot.totalSolPaid,
     } satisfies RankedRow;
   });
 
