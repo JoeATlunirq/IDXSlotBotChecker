@@ -108,14 +108,14 @@ export function RankerClient() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
+      <section className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Compare transactions</CardTitle>
             <CardDescription>Accepts raw signatures or Solscan transaction links.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-5" onSubmit={onSubmit}>
+            <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_180px_auto] xl:items-end" onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="trigger">Trigger transaction</Label>
                 <Input
@@ -136,6 +136,7 @@ export function RankerClient() {
                   value={form.bots}
                   onChange={(event) => setForm((current) => ({ ...current, bots: event.target.value }))}
                   placeholder={"One per line\nhttps://solscan.io/tx/...\nhttps://solscan.io/tx/..."}
+                  className="min-h-[132px] xl:min-h-[112px]"
                 />
               </div>
 
@@ -150,31 +151,29 @@ export function RankerClient() {
                 />
               </div>
 
-              <Button className="w-full" type="submit" disabled={loading}>
+              <Button className="w-full xl:mb-0.5 xl:w-auto xl:px-8" type="submit" disabled={loading}>
                 {loading ? "Checking..." : "Run comparison"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <InfoCard icon={Search} label="Trigger input" value="Hash or Solscan URL" />
-            <InfoCard icon={Wallet} label="Wallet column" value="Auto-detected signer" />
-            <InfoCard icon={Clock3} label="Delay estimate" value="Slot + idx based" />
-          </div>
-
-          {error ? (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="flex items-start gap-3 p-5 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {result ? <ResultsSection result={result} /> : <EmptyState />}
+        <div className="grid gap-4 md:grid-cols-3">
+          <InfoCard icon={Search} label="Trigger input" value="Hash or Solscan URL" />
+          <InfoCard icon={Wallet} label="Wallet column" value="First 5 chars emphasized" />
+          <InfoCard icon={Clock3} label="Delay estimate" value="Slot + idx based" />
         </div>
+
+        {error ? (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="flex items-start gap-3 p-5 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{error}</p>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {result ? <ResultsSection result={result} /> : <EmptyState />}
       </section>
     </main>
   );
@@ -237,18 +236,17 @@ function ResultsSection({ result }: { result: CompareResult }) {
           <CardDescription>Ranked by closeness to the trigger using slot delta and intra-slot position.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-hidden px-2 pb-3 pt-0 sm:px-3">
-          <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[11px] leading-4 sm:text-xs">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-left text-xs leading-5 sm:text-[13px]">
             <colgroup>
-              <col className="w-[7%]" />
-              <col className="w-[10%]" />
-              <col className="w-[18%]" />
-              <col className="w-[19%]" />
+              <col className="w-[8%]" />
               <col className="w-[11%]" />
+              <col className="w-[21%]" />
+              <col className="w-[21%]" />
+              <col className="w-[14%]" />
+              <col className="w-[7%]" />
               <col className="w-[6%]" />
-              <col className="w-[8%]" />
               <col className="w-[6%]" />
               <col className="w-[7%]" />
-              <col className="w-[8%]" />
             </colgroup>
             <thead>
               <tr>
@@ -259,7 +257,6 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   "Sig",
                   "Slot",
                   "Idx",
-                  "Txs",
                   "SlotΔ",
                   "IdxΔ",
                   "EstMs",
@@ -279,7 +276,6 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   wallet: result.trigger.wallet,
                   slot: result.trigger.slot,
                   idx: result.trigger.idx,
-                  slotTxCount: result.trigger.slotTxCount,
                   slotDelta: 0,
                   sameSlotIdxDelta: 0,
                   estDelayMs: 0,
@@ -293,20 +289,6 @@ function ResultsSection({ result }: { result: CompareResult }) {
           </table>
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <KeyValueCard title="Skipped bot signatures" emptyLabel="None" entries={Object.entries(result.skippedBotErrors)} />
-        <KeyValueCard title="Block fetch errors" emptyLabel="None" entries={Object.entries(result.blockErrors)} />
-      </div>
-
-      <KeyValueCard
-        title="Missing idx by slot"
-        emptyLabel="All requested transactions were found in block index data"
-        entries={Object.entries(result.missingIdxBySlot).map(([slot, signatures]) => [
-          slot,
-          signatures.map((signature) => shortSignature(signature, 8, 8)).join(", "),
-        ])}
-      />
     </div>
   );
 }
@@ -322,7 +304,6 @@ function ResultRow({
     wallet: string | null;
     slot: number;
     idx: number | null;
-    slotTxCount: number | null;
     slotDelta: number;
     sameSlotIdxDelta: number | null;
     estDelayMs: number;
@@ -333,19 +314,34 @@ function ResultRow({
     <tr className={trigger ? "bg-blue-50/60" : "hover:bg-slate-50"}>
       <td className="border-b border-slate-100 px-2 py-2 font-medium text-slate-900 whitespace-nowrap">{trigger ? "TRG" : row.rank}</td>
       <td className="border-b border-slate-100 px-2 py-2 text-slate-700 whitespace-nowrap">{row.name}</td>
-      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[10px] text-slate-700 whitespace-nowrap" title={row.wallet ?? undefined}>
-        {shortSignature(row.wallet, 8, 6)}
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[11px] text-slate-700 whitespace-nowrap" title={row.wallet ?? undefined}>
+        <WalletPreview wallet={row.wallet} />
       </td>
-      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[10px] text-slate-700 whitespace-nowrap" title={row.signature}>
-        {shortSignature(row.signature, 8, 6)}
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-[11px] text-slate-700 whitespace-nowrap" title={row.signature}>
+        {shortSignature(row.signature, 9, 7)}
       </td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slot}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.idx ?? "-"}</td>
-      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotTxCount ?? "-"}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.sameSlotIdxDelta ?? "-"}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
     </tr>
+  );
+}
+
+function WalletPreview({ wallet }: { wallet: string | null }) {
+  if (!wallet) {
+    return <span>-</span>;
+  }
+
+  const prefix = wallet.slice(0, 5);
+  const remainder = wallet.length > 12 ? `${wallet.slice(5, 8)}...${wallet.slice(-4)}` : wallet.slice(5);
+
+  return (
+    <>
+      <span className="font-bold text-slate-900">{prefix}</span>
+      <span>{remainder}</span>
+    </>
   );
 }
 
@@ -360,34 +356,3 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KeyValueCard({
-  title,
-  entries,
-  emptyLabel,
-}: {
-  title: string;
-  entries: Array<[string, string]>;
-  emptyLabel: string;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {entries.length === 0 ? (
-          <p className="text-sm text-slate-600">{emptyLabel}</p>
-        ) : (
-          <div className="space-y-3">
-            {entries.map(([key, value]) => (
-              <div key={`${title}-${key}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-                <p className="font-mono text-xs text-slate-500">{key}</p>
-                <p className="mt-1 break-all text-slate-800">{value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
