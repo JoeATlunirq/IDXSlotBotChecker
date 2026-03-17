@@ -114,38 +114,19 @@ export function RankerClient() {
             <CardTitle>Compare transactions</CardTitle>
             <CardDescription>Accepts raw signatures or Solscan transaction links.</CardDescription>
           </CardHeader>
-          <CardContent className="pt-0">
-            <form className="grid gap-4 xl:grid-cols-12" onSubmit={onSubmit}>
-              <div className="space-y-2 xl:col-span-8">
+          <CardContent>
+            <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_180px_auto] xl:items-end" onSubmit={onSubmit}>
+              <div className="space-y-2">
                 <Label htmlFor="trigger">Trigger transaction</Label>
                 <Input
                   id="trigger"
                   value={form.trigger}
                   onChange={(event) => setForm((current) => ({ ...current, trigger: event.target.value }))}
                   placeholder="Raw signature or Solscan tx URL"
-                  className="h-11"
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-[180px_auto] xl:col-span-4 xl:grid-cols-1 xl:content-start">
-                <div className="space-y-2">
-                  <Label htmlFor="slot-ms">Slot ms assumption</Label>
-                  <Input
-                    id="slot-ms"
-                    inputMode="decimal"
-                    value={form.slotMs}
-                    onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
-                    placeholder="400"
-                    className="h-11"
-                  />
-                </div>
-
-                <Button className="h-11 w-full xl:mt-7" type="submit" disabled={loading}>
-                  {loading ? "Checking..." : "Run comparison"}
-                </Button>
-              </div>
-
-              <div className="space-y-2 xl:col-span-12">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="bots">Bot transactions</Label>
                   <span className="text-xs text-slate-500">{botCount} entered</span>
@@ -155,9 +136,24 @@ export function RankerClient() {
                   value={form.bots}
                   onChange={(event) => setForm((current) => ({ ...current, bots: event.target.value }))}
                   placeholder={"One per line\nhttps://solscan.io/tx/...\nhttps://solscan.io/tx/..."}
-                  className="min-h-[150px] resize-y"
+                  className="min-h-[132px] xl:min-h-[112px]"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="slot-ms">Slot ms assumption</Label>
+                <Input
+                  id="slot-ms"
+                  inputMode="decimal"
+                  value={form.slotMs}
+                  onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
+                  placeholder="400"
+                />
+              </div>
+
+              <Button className="w-full xl:mb-0.5 xl:w-auto xl:px-8" type="submit" disabled={loading}>
+                {loading ? "Checking..." : "Run comparison"}
+              </Button>
             </form>
           </CardContent>
         </Card>
@@ -243,20 +239,18 @@ function ResultsSection({ result }: { result: CompareResult }) {
           <table className="w-full table-fixed border-separate border-spacing-0 text-left text-xs leading-5 sm:text-[13px]">
             <colgroup>
               <col className="w-[8%]" />
-              <col className="w-[11%]" />
-              <col className="w-[21%]" />
-              <col className="w-[21%]" />
+              <col className="w-[24%]" />
+              <col className="w-[24%]" />
               <col className="w-[14%]" />
               <col className="w-[7%]" />
               <col className="w-[6%]" />
               <col className="w-[12%]" />
-              <col className="w-[6%]" />
+              <col className="w-[5%]" />
             </colgroup>
             <thead>
               <tr>
                 {[
                   "Rank",
-                  "Name",
                   "Wallet",
                   "Sig",
                   "Slot",
@@ -319,7 +313,6 @@ function ResultRow({
   return (
     <tr className={trigger ? "bg-blue-50/60" : "hover:bg-slate-50"}>
       <td className="border-b border-slate-100 px-2 py-2 font-medium text-slate-900 whitespace-nowrap">{trigger ? "TRG" : row.rank}</td>
-      <td className="border-b border-slate-100 px-2 py-2 text-slate-700 whitespace-nowrap">{row.name}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-[11px] text-slate-700 whitespace-nowrap" title={row.wallet ?? undefined}>
         <WalletPreview wallet={row.wallet} />
       </td>
