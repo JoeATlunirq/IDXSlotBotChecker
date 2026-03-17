@@ -114,19 +114,38 @@ export function RankerClient() {
             <CardTitle>Compare transactions</CardTitle>
             <CardDescription>Accepts raw signatures or Solscan transaction links.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_180px_auto] xl:items-end" onSubmit={onSubmit}>
-              <div className="space-y-2">
+          <CardContent className="pt-0">
+            <form className="grid gap-4 xl:grid-cols-12" onSubmit={onSubmit}>
+              <div className="space-y-2 xl:col-span-8">
                 <Label htmlFor="trigger">Trigger transaction</Label>
                 <Input
                   id="trigger"
                   value={form.trigger}
                   onChange={(event) => setForm((current) => ({ ...current, trigger: event.target.value }))}
                   placeholder="Raw signature or Solscan tx URL"
+                  className="h-11"
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="grid gap-4 sm:grid-cols-[180px_auto] xl:col-span-4 xl:grid-cols-1 xl:content-start">
+                <div className="space-y-2">
+                  <Label htmlFor="slot-ms">Slot ms assumption</Label>
+                  <Input
+                    id="slot-ms"
+                    inputMode="decimal"
+                    value={form.slotMs}
+                    onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
+                    placeholder="400"
+                    className="h-11"
+                  />
+                </div>
+
+                <Button className="h-11 w-full xl:mt-7" type="submit" disabled={loading}>
+                  {loading ? "Checking..." : "Run comparison"}
+                </Button>
+              </div>
+
+              <div className="space-y-2 xl:col-span-12">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="bots">Bot transactions</Label>
                   <span className="text-xs text-slate-500">{botCount} entered</span>
@@ -136,24 +155,9 @@ export function RankerClient() {
                   value={form.bots}
                   onChange={(event) => setForm((current) => ({ ...current, bots: event.target.value }))}
                   placeholder={"One per line\nhttps://solscan.io/tx/...\nhttps://solscan.io/tx/..."}
-                  className="min-h-[132px] xl:min-h-[112px]"
+                  className="min-h-[150px] resize-y"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slot-ms">Slot ms assumption</Label>
-                <Input
-                  id="slot-ms"
-                  inputMode="decimal"
-                  value={form.slotMs}
-                  onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
-                  placeholder="400"
-                />
-              </div>
-
-              <Button className="w-full xl:mb-0.5 xl:w-auto xl:px-8" type="submit" disabled={loading}>
-                {loading ? "Checking..." : "Run comparison"}
-              </Button>
             </form>
           </CardContent>
         </Card>
