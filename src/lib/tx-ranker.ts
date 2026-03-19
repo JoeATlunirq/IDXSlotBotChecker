@@ -116,6 +116,7 @@ type BlockRecord = {
   slot: number;
   txCount: number;
   indexMap: Record<string, number>;
+  blockTime: number | null;
 };
 
 export function normalizeSignatureInput(value: string) {
@@ -541,6 +542,7 @@ async function fetchBlockSignatures(rpcUrl: string, slot: number, expectedSignat
         slot,
         txCount: entries.length,
         indexMap,
+        blockTime: asNumber(result?.blockTime),
       };
 
       if (
@@ -622,6 +624,72 @@ function slotsNeededForComparison(triggerSlot: number, otherSlot: number) {
   return slots;
 }
 
+function average(values: number[]): number | null {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+async function fetchRecentSlotMs(rpcUrl: string): Promise<number | null> {
+  try {
+    const samples = await callRpc<JsonArray>(rpcUrl, "getRecentPerformanceSamples", [5]);
+    const slotMsValues = samples
+      .map((entry) => asObject(entry))
+      .map((entry) => {
+        const numSlots = entry ? asNumber(entry.numSlots) : null;
+        const samplePeriodSecs = entry ? asNumber(entry.samplePeriodSecs) : null;
+        if (numSlots === null || samplePeriodSecs === null || numSlots <= 0 || samplePeriodSecs <= 0) {
+          return null;
+        }
+        return (samplePeriodSecs * 1000) / numSlots;
+      })
+      .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0);
+
+    return average(slotMsValues);
+  } catch {
+    return null;
+  }
+}
+
+function buildSlotDurationMsBySlot(blockRecords: Map<number, BlockRecord>) {
+  const durations = new Map<number, number>();
+  const timedBlocks = [...blockRecords.values()]
+    .filter((block) => block.blockTime !== null)
+    .sort((left, right) => left.slot - right.slot);
+
+  for (let index = 0; index < timedBlocks.length - 1; index += 1) {
+    const current = timedBlocks[index];
+    const next = timedBlocks[index + 1];
+    const slotSpan = next.slot - current.slot;
+    const deltaMs = (next.blockTime! - current.blockTime!) * 1000;
+
+    if (slotSpan <= 0 || deltaMs <= 0) {
+      continue;
+    }
+
+    const perSlotMs = deltaMs / slotSpan;
+    if (!Number.isFinite(perSlotMs) || perSlotMs <= 0) {
+      continue;
+    }
+
+    for (let slot = current.slot; slot < next.slot; slot += 1) {
+      durations.set(slot, perSlotMs);
+    }
+  }
+
+  return durations;
+}
+
+function slotDurationMs(slot: number, slotDurationMsBySlot: Map<number, number>, fallbackSlotMs: number) {
+  return slotDurationMsBySlot.get(slot) ?? fallbackSlotMs;
+}
+
+function deriveObservedSlotMs(slotDurationMsBySlot: Map<number, number>) {
+  return average([...slotDurationMsBySlot.values()]);
+}
+
 function exactIdxDelta(trigger: TxRecord, other: TxRecord, blockRecords: Map<number, BlockRecord>): number | null {
   if (trigger.idx === null || other.idx === null) {
     return null;
@@ -653,9 +721,15 @@ function exactIdxDelta(trigger: TxRecord, other: TxRecord, blockRecords: Map<num
   return delta + other.idx;
 }
 
-function estimateDelayMs(trigger: TxRecord, other: TxRecord, slotMs: number, blockRecords: Map<number, BlockRecord>): number {
+function estimateDelayMs(
+  trigger: TxRecord,
+  other: TxRecord,
+  fallbackSlotMs: number,
+  blockRecords: Map<number, BlockRecord>,
+  slotDurationMsBySlot: Map<number, number>,
+): number {
   if (trigger.idx === null || other.idx === null) {
-    return (other.slot - trigger.slot) * slotMs;
+    return (other.slot - trigger.slot) * fallbackSlotMs;
   }
 
   if (trigger.slot === other.slot) {
@@ -663,37 +737,46 @@ function estimateDelayMs(trigger: TxRecord, other: TxRecord, slotMs: number, blo
     if (txCount === null || txCount <= 0) {
       return 0;
     }
-    return ((other.idx - trigger.idx) * slotMs) / txCount;
+    const currentSlotMs = slotDurationMs(trigger.slot, slotDurationMsBySlot, fallbackSlotMs);
+    return ((other.idx - trigger.idx) * currentSlotMs) / txCount;
   }
 
   if (trigger.slot > other.slot) {
-    return -estimateDelayMs(other, trigger, slotMs, blockRecords);
+    return -estimateDelayMs(other, trigger, fallbackSlotMs, blockRecords, slotDurationMsBySlot);
   }
 
   if (trigger.slotTxCount === null || trigger.slotTxCount <= 0 || other.slotTxCount === null || other.slotTxCount <= 0) {
-    return (other.slot - trigger.slot) * slotMs;
+    return (other.slot - trigger.slot) * fallbackSlotMs;
   }
 
-  let totalMs = ((trigger.slotTxCount - trigger.idx) * slotMs) / trigger.slotTxCount;
+  let totalMs =
+    ((trigger.slotTxCount - trigger.idx) * slotDurationMs(trigger.slot, slotDurationMsBySlot, fallbackSlotMs)) /
+    trigger.slotTxCount;
 
   for (let slot = trigger.slot + 1; slot < other.slot; slot += 1) {
     const block = blockRecords.get(slot);
     if (!block || block.txCount <= 0) {
-      return (other.slot - trigger.slot) * slotMs;
+      return (other.slot - trigger.slot) * fallbackSlotMs;
     }
-    totalMs += slotMs;
+    totalMs += slotDurationMs(slot, slotDurationMsBySlot, fallbackSlotMs);
   }
 
-  totalMs += (other.idx * slotMs) / other.slotTxCount;
+  totalMs += (other.idx * slotDurationMs(other.slot, slotDurationMsBySlot, fallbackSlotMs)) / other.slotTxCount;
   return totalMs;
 }
 
-function buildRankedRows(trigger: TxRecord, bots: TxRecord[], slotMs: number, blockRecords: Map<number, BlockRecord>): RankedRow[] {
+function buildRankedRows(
+  trigger: TxRecord,
+  bots: TxRecord[],
+  fallbackSlotMs: number,
+  blockRecords: Map<number, BlockRecord>,
+  slotDurationMsBySlot: Map<number, number>,
+): RankedRow[] {
   const rows = bots.map((bot, index) => {
     const idxDelta = exactIdxDelta(trigger, bot, blockRecords);
     const sameSlotIdxDelta =
       bot.slot === trigger.slot && bot.idx !== null && trigger.idx !== null ? bot.idx - trigger.idx : null;
-    const estDelayMs = estimateDelayMs(trigger, bot, slotMs, blockRecords);
+    const estDelayMs = estimateDelayMs(trigger, bot, fallbackSlotMs, blockRecords, slotDurationMsBySlot);
 
     return {
       rank: 0,
@@ -736,10 +819,8 @@ export async function compareTransactions(input: {
   rpcUrl: string;
   triggerInput: string;
   botInputs: string[];
-  slotMs?: number;
 }): Promise<CompareResult> {
   const rpcUrl = input.rpcUrl.trim();
-  const slotMs = Number.isFinite(input.slotMs) ? Number(input.slotMs) : DEFAULT_SLOT_MS;
   if (!rpcUrl) {
     throw new Error("RPC URL is required.");
   }
@@ -834,11 +915,15 @@ export async function compareTransactions(input: {
     }
   });
 
+  const slotDurationMsBySlot = buildSlotDurationMsBySlot(blockRecords);
+  const slotMs = deriveObservedSlotMs(slotDurationMsBySlot) ?? (await fetchRecentSlotMs(rpcUrl)) ?? DEFAULT_SLOT_MS;
+
   const rankedBots = buildRankedRows(
     txRecords[triggerSignature],
     survivingBotSignatures.map((signature) => txRecords[signature]),
     slotMs,
     blockRecords,
+    slotDurationMsBySlot,
   );
 
   const skippedBotErrors: Record<string, string> = {};

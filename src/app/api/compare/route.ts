@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
       rpcUrl: SERVER_RPC_URL.trim(),
       triggerInput: body.trigger,
       botInputs: body.bots,
-      slotMs: body.slotMs,
     });
 
     return NextResponse.json(result);

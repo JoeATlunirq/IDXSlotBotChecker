@@ -14,14 +14,12 @@ import { shortSignature } from "@/lib/utils";
 type FormState = {
   trigger: string;
   bots: string;
-  slotMs: string;
 };
 
 export function RankerClient() {
   const [form, setForm] = useState<FormState>({
     trigger: "",
     bots: "",
-    slotMs: "400",
   });
   const [loading, setLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -49,7 +47,6 @@ export function RankerClient() {
         body: JSON.stringify({
           trigger: form.trigger,
           bots: form.bots.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
-          slotMs: Number(form.slotMs),
         }),
       });
 
@@ -117,7 +114,7 @@ export function RankerClient() {
             <CardDescription>Accepts raw signatures or Solscan transaction links.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_180px_auto] xl:items-end" onSubmit={onSubmit}>
+            <form className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_auto] xl:items-end" onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="trigger">Trigger transaction</Label>
                 <Input
@@ -139,17 +136,6 @@ export function RankerClient() {
                   onChange={(event) => setForm((current) => ({ ...current, bots: event.target.value }))}
                   placeholder={"One per line\nhttps://solscan.io/tx/...\nhttps://solscan.io/tx/..."}
                   className="min-h-[132px] xl:min-h-[112px]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="slot-ms">Slot ms assumption</Label>
-                <Input
-                  id="slot-ms"
-                  inputMode="decimal"
-                  value={form.slotMs}
-                  onChange={(event) => setForm((current) => ({ ...current, slotMs: event.target.value }))}
-                  placeholder="400"
                 />
               </div>
 
@@ -229,7 +215,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="RPC mode" value="Server-only" />
         <StatCard label="Bot txs ranked" value={String(result.rankedBots.length)} />
-        <StatCard label="Slot ms" value={result.slotMs.toFixed(1)} />
+        <StatCard label="Observed slot ms" value={result.slotMs.toFixed(1)} />
       </div>
 
       <Card>

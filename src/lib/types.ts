@@ -36,5 +36,4 @@ export type CompareResult = {
 export type CompareRequestPayload = {
   trigger: string;
   bots: string[];
-  slotMs?: number;
 };
