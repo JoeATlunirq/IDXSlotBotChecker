@@ -1,6 +1,8 @@
 import { CompareResult, RankedRow, TxRecord } from "@/lib/types";
 
 const DEFAULT_SLOT_MS = 400;
+const MIN_OBSERVED_SLOT_MS = 250;
+const MAX_OBSERVED_SLOT_MS = 650;
 const LAMPORTS_PER_SOL = 1_000_000_000;
 const SYSTEM_PROGRAM_ID = "11111111111111111111111111111111";
 const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -632,6 +634,18 @@ function average(values: number[]): number | null {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function normalizeObservedSlotMs(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (value < MIN_OBSERVED_SLOT_MS || value > MAX_OBSERVED_SLOT_MS) {
+    return null;
+  }
+
+  return value;
+}
+
 async function fetchRecentSlotMs(rpcUrl: string): Promise<number | null> {
   try {
     const samples = await callRpc<JsonArray>(rpcUrl, "getRecentPerformanceSamples", [5]);
@@ -643,7 +657,7 @@ async function fetchRecentSlotMs(rpcUrl: string): Promise<number | null> {
         if (numSlots === null || samplePeriodSecs === null || numSlots <= 0 || samplePeriodSecs <= 0) {
           return null;
         }
-        return (samplePeriodSecs * 1000) / numSlots;
+        return normalizeObservedSlotMs((samplePeriodSecs * 1000) / numSlots);
       })
       .filter((value): value is number => value !== null && Number.isFinite(value) && value > 0);
 
@@ -669,8 +683,8 @@ function buildSlotDurationMsBySlot(blockRecords: Map<number, BlockRecord>) {
       continue;
     }
 
-    const perSlotMs = deltaMs / slotSpan;
-    if (!Number.isFinite(perSlotMs) || perSlotMs <= 0) {
+    const perSlotMs = normalizeObservedSlotMs(deltaMs / slotSpan);
+    if (perSlotMs === null) {
       continue;
     }
 
@@ -687,7 +701,7 @@ function slotDurationMs(slot: number, slotDurationMsBySlot: Map<number, number>,
 }
 
 function deriveObservedSlotMs(slotDurationMsBySlot: Map<number, number>) {
-  return average([...slotDurationMsBySlot.values()]);
+  return normalizeObservedSlotMs(average([...slotDurationMsBySlot.values()]));
 }
 
 function exactIdxDelta(trigger: TxRecord, other: TxRecord, blockRecords: Map<number, BlockRecord>): number | null {
