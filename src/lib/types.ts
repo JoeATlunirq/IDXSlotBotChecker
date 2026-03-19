@@ -17,6 +17,7 @@ export type RankedRow = {
   idx: number | null;
   slotTxCount: number | null;
   slotDelta: number;
+  idxDelta: number | null;
   sameSlotIdxDelta: number | null;
   estDelayMs: number;
   absEstDelayMs: number;

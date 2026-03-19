@@ -610,25 +610,90 @@ function attachSlotIndexes(records: Record<string, TxRecord>, blockRecords: Map<
   });
 }
 
-function slotFraction(record: TxRecord) {
-  if (record.idx === null || record.slotTxCount === null || record.slotTxCount <= 0) {
-    return 0.5;
+function slotsNeededForComparison(triggerSlot: number, otherSlot: number) {
+  const start = Math.min(triggerSlot, otherSlot);
+  const end = Math.max(triggerSlot, otherSlot);
+  const slots = new Set<number>();
+
+  for (let slot = start; slot <= end; slot += 1) {
+    slots.add(slot);
   }
 
-  return (record.idx + 0.5) / record.slotTxCount;
+  return slots;
 }
 
-function estimateDelayMs(trigger: TxRecord, other: TxRecord, slotMs: number) {
-  const slotDelta = other.slot - trigger.slot;
-  const fractionalDelta = slotFraction(other) - slotFraction(trigger);
-  return (slotDelta + fractionalDelta) * slotMs;
+function exactIdxDelta(trigger: TxRecord, other: TxRecord, blockRecords: Map<number, BlockRecord>): number | null {
+  if (trigger.idx === null || other.idx === null) {
+    return null;
+  }
+
+  if (trigger.slot === other.slot) {
+    return other.idx - trigger.idx;
+  }
+
+  if (trigger.slot > other.slot) {
+    const reversed = exactIdxDelta(other, trigger, blockRecords);
+    return reversed === null ? null : -reversed;
+  }
+
+  if (trigger.slotTxCount === null || trigger.slotTxCount <= 0) {
+    return null;
+  }
+
+  let delta = trigger.slotTxCount - trigger.idx;
+
+  for (let slot = trigger.slot + 1; slot < other.slot; slot += 1) {
+    const block = blockRecords.get(slot);
+    if (!block || block.txCount <= 0) {
+      return null;
+    }
+    delta += block.txCount;
+  }
+
+  return delta + other.idx;
 }
 
-function buildRankedRows(trigger: TxRecord, bots: TxRecord[], slotMs: number): RankedRow[] {
+function estimateDelayMs(trigger: TxRecord, other: TxRecord, slotMs: number, blockRecords: Map<number, BlockRecord>): number {
+  if (trigger.idx === null || other.idx === null) {
+    return (other.slot - trigger.slot) * slotMs;
+  }
+
+  if (trigger.slot === other.slot) {
+    const txCount = trigger.slotTxCount;
+    if (txCount === null || txCount <= 0) {
+      return 0;
+    }
+    return ((other.idx - trigger.idx) * slotMs) / txCount;
+  }
+
+  if (trigger.slot > other.slot) {
+    return -estimateDelayMs(other, trigger, slotMs, blockRecords);
+  }
+
+  if (trigger.slotTxCount === null || trigger.slotTxCount <= 0 || other.slotTxCount === null || other.slotTxCount <= 0) {
+    return (other.slot - trigger.slot) * slotMs;
+  }
+
+  let totalMs = ((trigger.slotTxCount - trigger.idx) * slotMs) / trigger.slotTxCount;
+
+  for (let slot = trigger.slot + 1; slot < other.slot; slot += 1) {
+    const block = blockRecords.get(slot);
+    if (!block || block.txCount <= 0) {
+      return (other.slot - trigger.slot) * slotMs;
+    }
+    totalMs += slotMs;
+  }
+
+  totalMs += (other.idx * slotMs) / other.slotTxCount;
+  return totalMs;
+}
+
+function buildRankedRows(trigger: TxRecord, bots: TxRecord[], slotMs: number, blockRecords: Map<number, BlockRecord>): RankedRow[] {
   const rows = bots.map((bot, index) => {
+    const idxDelta = exactIdxDelta(trigger, bot, blockRecords);
     const sameSlotIdxDelta =
       bot.slot === trigger.slot && bot.idx !== null && trigger.idx !== null ? bot.idx - trigger.idx : null;
-    const estDelayMs = estimateDelayMs(trigger, bot, slotMs);
+    const estDelayMs = estimateDelayMs(trigger, bot, slotMs, blockRecords);
 
     return {
       rank: 0,
@@ -639,6 +704,7 @@ function buildRankedRows(trigger: TxRecord, bots: TxRecord[], slotMs: number): R
       idx: bot.idx,
       slotTxCount: bot.slotTxCount,
       slotDelta: bot.slot - trigger.slot,
+      idxDelta,
       sameSlotIdxDelta,
       estDelayMs,
       absEstDelayMs: Math.abs(estDelayMs),
@@ -733,6 +799,33 @@ export async function compareTransactions(input: {
 
   attachSlotIndexes(txRecords, blockRecords);
 
+  const comparisonSlots = new Set<number>();
+  survivingBotSignatures.forEach((signature) => {
+    const botRecord = txRecords[signature];
+    if (!botRecord) {
+      return;
+    }
+
+    slotsNeededForComparison(triggerRecord.slot, botRecord.slot).forEach((slot) => {
+      comparisonSlots.add(slot);
+    });
+  });
+
+  await Promise.all(
+    [...comparisonSlots].map(async (slot) => {
+      if (blockRecords.has(slot)) {
+        return;
+      }
+
+      try {
+        const blockRecord = await fetchBlockSignatures(rpcUrl, slot, new Set<string>());
+        blockRecords.set(slot, blockRecord);
+      } catch {
+        blockErrors[String(slot)] = "Unable to fetch block index data.";
+      }
+    }),
+  );
+
   const missingIdxBySlot: Record<string, string[]> = {};
   Object.values(txRecords).forEach((record) => {
     if (record.idx === null) {
@@ -745,6 +838,7 @@ export async function compareTransactions(input: {
     txRecords[triggerSignature],
     survivingBotSignatures.map((signature) => txRecords[signature]),
     slotMs,
+    blockRecords,
   );
 
   const skippedBotErrors: Record<string, string> = {};

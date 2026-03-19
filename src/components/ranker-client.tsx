@@ -240,13 +240,14 @@ function ResultsSection({ result }: { result: CompareResult }) {
         <CardContent className="overflow-hidden px-2 pb-3 pt-0 sm:px-3">
           <table className="w-full table-fixed border-separate border-spacing-0 text-left text-xs leading-5 sm:text-[13px]">
             <colgroup>
-              <col className="w-[8%]" />
-              <col className="w-[24%]" />
-              <col className="w-[24%]" />
-              <col className="w-[14%]" />
               <col className="w-[7%]" />
+              <col className="w-[22%]" />
+              <col className="w-[22%]" />
+              <col className="w-[13%]" />
+              <col className="w-[7%]" />
+              <col className="w-[8%]" />
               <col className="w-[6%]" />
-              <col className="w-[12%]" />
+              <col className="w-[10%]" />
               <col className="w-[5%]" />
             </colgroup>
             <thead>
@@ -257,6 +258,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   "Sig",
                   "Slot",
                   "Idx",
+                  "IdxΔ",
                   "SlotΔ",
                   "Paid SOL",
                   "EstMs",
@@ -276,6 +278,7 @@ function ResultsSection({ result }: { result: CompareResult }) {
                   wallet: result.trigger.wallet,
                   slot: result.trigger.slot,
                   idx: result.trigger.idx,
+                  idxDelta: 0,
                   slotDelta: 0,
                   sameSlotIdxDelta: 0,
                   totalSolPaid: result.trigger.totalSolPaid,
@@ -305,6 +308,7 @@ function ResultRow({
     wallet: string | null;
     slot: number;
     idx: number | null;
+    idxDelta: number | null;
     slotDelta: number;
     sameSlotIdxDelta: number | null;
     totalSolPaid: number;
@@ -323,6 +327,7 @@ function ResultRow({
       </td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slot}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.idx ?? "-"}</td>
+      <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.idxDelta === null ? "-" : row.idxDelta >= 0 ? `+${row.idxDelta}` : row.idxDelta}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.slotDelta >= 0 ? `+${row.slotDelta}` : row.slotDelta}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.totalSolPaid.toFixed(6)}</td>
       <td className="border-b border-slate-100 px-2 py-2 font-mono text-slate-700 whitespace-nowrap">{row.estDelayMs >= 0 ? `+${row.estDelayMs.toFixed(1)}` : row.estDelayMs.toFixed(1)}</td>
